@@ -105,5 +105,113 @@ router.post("/logout", authMiddleware, (req: Request, res: Response) => {
   return res.json({ message: "Logged out" })
 })
 
+// Register face for user (stores face descriptor)
+router.post("/register-face", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    await connectDB()
+
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" })
+    }
+
+    const { faceDescriptor } = req.body
+
+    if (!faceDescriptor || !Array.isArray(faceDescriptor) || faceDescriptor.length !== 128) {
+      return res.status(400).json({ error: "Invalid face descriptor" })
+    }
+
+    const user = await User.findById(req.user.id)
+    if (!user) {
+      return res.status(404).json({ error: "User not found" })
+    }
+
+    user.faceDescriptor = faceDescriptor
+    user.faceRegistered = true
+    user.faceRegistrationDate = new Date()
+    await user.save()
+
+    return res.json({
+      message: "Face registered successfully",
+      faceRegistered: true,
+      registrationDate: user.faceRegistrationDate
+    })
+  } catch (error: any) {
+    console.error("[backend] Error registering face:", error)
+    return res.status(500).json({ error: error.message })
+  }
+})
+
+// Verify face for attendance
+router.post("/verify-face", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    await connectDB()
+
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" })
+    }
+
+    const { faceDescriptor } = req.body
+
+    if (!faceDescriptor || !Array.isArray(faceDescriptor) || faceDescriptor.length !== 128) {
+      return res.status(400).json({ error: "Invalid face descriptor" })
+    }
+
+    const user = await User.findById(req.user.id)
+    if (!user) {
+      return res.status(404).json({ error: "User not found" })
+    }
+
+    if (!user.faceRegistered || !user.faceDescriptor) {
+      return res.status(400).json({ error: "Face not registered for this user" })
+    }
+
+    // Calculate Euclidean distance between stored and provided face descriptors
+    const storedDescriptor = user.faceDescriptor
+    let distance = 0
+    for (let i = 0; i < 128; i++) {
+      distance += Math.pow(storedDescriptor[i] - faceDescriptor[i], 2)
+    }
+    distance = Math.sqrt(distance)
+
+    // Face recognition threshold (lower = more strict, higher = more lenient)
+    const threshold = 0.6
+    const isMatch = distance < threshold
+
+    return res.json({
+      verified: isMatch,
+      confidence: 1 - (distance / threshold), // Normalize confidence
+      distance: distance,
+      threshold: threshold
+    })
+  } catch (error: any) {
+    console.error("[backend] Error verifying face:", error)
+    return res.status(500).json({ error: error.message })
+  }
+})
+
+// Check if user has registered face
+router.get("/face-status", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    await connectDB()
+
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" })
+    }
+
+    const user = await User.findById(req.user.id).select('faceRegistered faceRegistrationDate')
+    if (!user) {
+      return res.status(404).json({ error: "User not found" })
+    }
+
+    return res.json({
+      faceRegistered: user.faceRegistered,
+      registrationDate: user.faceRegistrationDate
+    })
+  } catch (error: any) {
+    console.error("[backend] Error checking face status:", error)
+    return res.status(500).json({ error: error.message })
+  }
+})
+
 export default router
 

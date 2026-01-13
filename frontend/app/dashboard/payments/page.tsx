@@ -18,10 +18,11 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
+import { api } from "@/lib/api"
 
 export default function PaymentsPage() {
   const [payments, setPayments] = useState([])
@@ -37,19 +38,24 @@ export default function PaymentsPage() {
 
   const fetchPayments = async () => {
     try {
-      const res = await fetch("/api/payments")
-      const data = await res.json()
+      const data = await api.getPayments()
       setPayments(data)
     } catch (error) {
       console.error("[versai] Error fetching payments:", error)
+      toast.error("Failed to load payments")
     } finally {
       setLoading(false)
     }
   }
 
   const fetchStudents = async () => {
-    const res = await fetch("/api/students")
-    setStudents(await res.json())
+    try {
+      const data = await api.getAdminStudents()
+      setStudents(data)
+    } catch (error) {
+      console.error("[versai] Error fetching students:", error)
+      toast.error("Failed to load students")
+    }
   }
 
   const handleAddPayment = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -63,17 +69,13 @@ export default function PaymentsPage() {
     }
 
     try {
-      const res = await fetch("/api/payments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error("Failed to record payment")
+      await api.createPayment(data)
       toast.success("Payment recorded successfully")
       setIsAddOpen(false)
       fetchPayments()
     } catch (error) {
       toast.error("Failed to record payment")
+      console.error("Error recording payment:", error)
     }
   }
 
@@ -117,6 +119,9 @@ export default function PaymentsPage() {
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle className="font-serif text-2xl">New Transaction</DialogTitle>
+                    <DialogDescription>
+                      Record a new payment transaction for a student. Select the student and enter payment details.
+                    </DialogDescription>
                   </DialogHeader>
                   <form onSubmit={handleAddPayment} className="space-y-4 pt-4">
                     <div className="space-y-2">

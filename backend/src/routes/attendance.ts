@@ -1,6 +1,7 @@
 import express, { Response } from "express"
 import connectDB from "../config/db"
 import Attendance from "../models/Attendance"
+import QRSession from "../models/QRSession"
 import { authMiddleware, roleMiddleware, AuthRequest } from "../config/auth"
 
 const router = express.Router()
@@ -11,7 +12,86 @@ function startOfDay(date: Date) {
   return d
 }
 
-// Self attendance (Student/Staff)
+// QR-based attendance (Student/Staff)
+router.post("/qr", authMiddleware, roleMiddleware(["Student", "Staff"]), async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" })
+    }
+
+    const role = req.user.role
+    const { qrToken, location } = req.body as {
+      qrToken: string
+      location?: { lat?: number; lng?: number; address?: string }
+    }
+
+    if (!qrToken) {
+      return res.status(400).json({ error: "QR token is required" })
+    }
+
+    await connectDB()
+
+    // Validate QR token
+    const qrSession = await QRSession.findOne({
+      qrToken,
+      expiresAt: { $gt: new Date() }
+    })
+
+    if (!qrSession) {
+      return res.status(400).json({ error: "Invalid or expired QR code" })
+    }
+
+    // Check if location is required
+    if (qrSession.locationRequired) {
+      if (!location || typeof location.lat !== "number" || typeof location.lng !== "number") {
+        return res.status(400).json({ error: "Location is required for this QR session" })
+      }
+    }
+
+    const today = startOfDay(new Date())
+
+    // Check for existing attendance (prevent duplicates)
+    const existing = await Attendance.findOne({
+      user: req.user.id,
+      role,
+      date: today,
+      status: "Present",
+    })
+
+    if (existing) {
+      return res.status(409).json({
+        error: "Attendance already marked for today",
+        attendance: existing
+      })
+    }
+
+    // Create attendance record
+    const record = await Attendance.create({
+      user: req.user.id,
+      role,
+      date: today,
+      checkInTime: new Date(),
+      method: "QR",
+      location: location ? {
+        lat: location.lat,
+        lng: location.lng,
+        address: location.address,
+      } : undefined,
+      status: "Present",
+    })
+
+    return res.status(201).json({
+      message: "Attendance marked successfully",
+      attendance: record,
+      qrValid: true
+    })
+  } catch (error: any) {
+    console.error("[backend] Error in QR attendance:", error)
+    return res.status(500).json({ error: error.message })
+  }
+})
+
+// Self attendance (Student/Staff) - Legacy endpoint, keeping for backward compatibility
 router.post("/self", authMiddleware, roleMiddleware(["Student", "Staff"]), async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {

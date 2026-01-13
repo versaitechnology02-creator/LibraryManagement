@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import { CalendarDays, DollarSign, Smartphone, UserCheck } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AttendanceScanner } from "@/components/attendance-scanner"
+import { FaceRecognition } from "@/components/face-recognition"
 
 type AttendanceRecord = {
   _id: string
@@ -41,6 +42,7 @@ export default function StaffDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isScannerOpen, setIsScannerOpen] = useState(false)
+  const [faceRecognitionMode, setFaceRecognitionMode] = useState<'register' | 'verify' | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -100,7 +102,7 @@ export default function StaffDashboardPage() {
             </p>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
             <Dialog open={isScannerOpen} onOpenChange={setIsScannerOpen}>
               <DialogTrigger asChild>
                 <Button
@@ -115,18 +117,89 @@ export default function StaffDashboardPage() {
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle className="font-serif text-lg">Scan QR & verify face</DialogTitle>
+                  <DialogTitle className="font-serif text-lg">Scan Daily QR Code</DialogTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Scan the QR code displayed on the admin dashboard to mark your attendance
+                  </p>
                 </DialogHeader>
                 <AttendanceScanner
-                  onCompleted={() => {
-                    setIsScannerOpen(false)
-                    // Refresh attendance quietly
-                    fetch("/api/attendance/me")
-                      .then((res) => (res.ok ? res.json() : Promise.reject()))
-                      .then((data) => setAttendance(data))
-                      .catch(() => undefined)
+                  onScanSuccess={async (data) => {
+                    try {
+                      // Validate and mark attendance with QR token
+                      await api.markQRAttendance({ qrToken: data, location: { lat: 0, lng: 0, address: 'QR Scan' } });
+                      setIsScannerOpen(false);
+                      // Refresh attendance data
+                      const attData = await api.getMyAttendance();
+                      setAttendance(attData);
+                    } catch (e: any) {
+                      alert('Error marking attendance: ' + e.message);
+                    }
+                  }}
+                  onScanError={(error) => {
+                    console.error('Scan error:', error);
                   }}
                 />
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={faceRecognitionMode !== null} onOpenChange={(open) => !open && setFaceRecognitionMode(null)}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="inline-flex items-center gap-2"
+                  onClick={async () => {
+                    try {
+                      // Check if user has registered face
+                      const faceStatus = await api.getFaceStatus()
+                      setFaceRecognitionMode(faceStatus.faceRegistered ? 'verify' : 'register')
+                    } catch (e: any) {
+                      alert('Error checking face registration status: ' + e.message)
+                    }
+                  }}
+                >
+                  <UserCheck className="h-4 w-4" />
+                  Mark attendance via Face
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="font-serif text-lg">
+                    {faceRecognitionMode === 'register' ? 'Register Your Face' : 'Verify Your Face'}
+                  </DialogTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {faceRecognitionMode === 'register'
+                      ? 'Register your face for future attendance verification'
+                      : 'Verify your face to mark attendance'
+                    }
+                  </p>
+                </DialogHeader>
+                {faceRecognitionMode && (
+                  <FaceRecognition
+                    mode={faceRecognitionMode}
+                    onSuccess={async (result) => {
+                      if (faceRecognitionMode === 'register') {
+                        // Face registered successfully, now verify for attendance
+                        setFaceRecognitionMode('verify')
+                      } else {
+                        // Face verified, mark attendance
+                        try {
+                          await api.markAttendance({ faceMatch: true, location: { lat: 0, lng: 0, address: 'Face recognition' } });
+                          setFaceRecognitionMode(null);
+                          // Refresh attendance data
+                          const attData = await api.getMyAttendance();
+                          setAttendance(attData);
+                        } catch (e: any) {
+                          alert('Error marking attendance: ' + e.message);
+                        }
+                      }
+                    }}
+                    onError={(error) => {
+                      console.error('Face recognition error:', error);
+                      alert('Face recognition failed: ' + error);
+                    }}
+                  />
+                )}
               </DialogContent>
             </Dialog>
           </div>

@@ -17,11 +17,12 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
+import { api } from "@/lib/api"
 
 export default function ShiftsPage() {
   const [shifts, setShifts] = useState([])
@@ -34,11 +35,11 @@ export default function ShiftsPage() {
 
   const fetchShifts = async () => {
     try {
-      const res = await fetch("/api/shifts")
-      const data = await res.json()
+      const data = await api.getShifts()
       setShifts(data)
     } catch (error) {
       console.error("[versai] Error fetching shifts:", error)
+      toast.error("Failed to load shifts")
     } finally {
       setLoading(false)
     }
@@ -55,17 +56,13 @@ export default function ShiftsPage() {
     }
 
     try {
-      const res = await fetch("/api/shifts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error("Failed to add shift")
+      await api.createShift(data)
       toast.success("Shift added successfully")
-      setIsAddOpen(false)
+      setIsAddOpen(false)-
       fetchShifts()
     } catch (error) {
       toast.error("Failed to add shift")
+      console.error("Error adding shift:", error)
     }
   }
 
@@ -104,6 +101,9 @@ export default function ShiftsPage() {
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle className="font-serif text-2xl">Create New Shift</DialogTitle>
+                  <DialogDescription>
+                    Define a new shift schedule with start time, end time, and maximum capacity.
+                  </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleAddShift} className="space-y-4 pt-4">
                   <div className="space-y-2">

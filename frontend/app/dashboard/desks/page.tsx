@@ -17,11 +17,11 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { toast } from "sonner"
+import { api } from "@/lib/api"
 
 export default function DesksPage() {
   const [desks, setDesks] = useState([])
@@ -34,11 +34,11 @@ export default function DesksPage() {
 
   const fetchDesks = async () => {
     try {
-      const res = await fetch("/api/desks")
-      const data = await res.json()
+      const data = await api.getDesks()
       setDesks(data)
     } catch (error) {
       console.error("[versai] Error fetching desks:", error)
+      toast.error("Failed to load desks")
     } finally {
       setLoading(false)
     }
@@ -53,17 +53,13 @@ export default function DesksPage() {
     }
 
     try {
-      const res = await fetch("/api/desks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error("Failed to add desk")
+      await api.createDesk(data)
       toast.success("Desk added successfully")
       setIsAddOpen(false)
       fetchDesks()
     } catch (error) {
       toast.error("Failed to add desk")
+      console.error("Error adding desk:", error)
     }
   }
 
@@ -102,6 +98,9 @@ export default function DesksPage() {
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle className="font-serif text-2xl">Add New Desk</DialogTitle>
+                  <DialogDescription>
+                    Create a new desk or seat for library use. Specify the desk number and type.
+                  </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleAddDesk} className="space-y-4 pt-4">
                   <div className="space-y-2">

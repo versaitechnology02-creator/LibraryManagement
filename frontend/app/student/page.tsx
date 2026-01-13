@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AttendanceScanner } from '@/components/attendance-scanner';
+import { FaceRecognition } from '@/components/face-recognition';
 import {
   CalendarDays,
   CheckCircle2,
@@ -70,9 +71,7 @@ export default function StudentDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [studentProfile, setStudentProfile] = useState<any | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [attendanceMarked, setAttendanceMarked] = useState(false);
-  const [notifications, setNotifications] = useState<string[]>([]);
+  const [faceRecognitionMode, setFaceRecognitionMode] = useState<'register' | 'verify' | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -155,22 +154,20 @@ export default function StudentDashboardPage() {
   };
 
   const handleMarkAttendanceFace = async () => {
-    // Mock face recognition for now
     try {
-      // In real implementation, this would capture face and send to backend
-      const success = Math.random() > 0.3; // 70% success rate for demo
-      if (success) {
-        await api.markAttendance({ faceMatch: true, location: { lat: 0, lng: 0, address: 'Face recognition' } });
-        setAttendanceMarked(true);
-        setTimeout(() => setAttendanceMarked(false), 3000);
-        // Refresh attendance data
-        const attData = await api.getMyAttendance();
-        setAttendance(attData);
-      } else {
-        alert('Face not recognized. Please try again or use QR scan.');
+      // Check if user has registered face
+      const faceStatus = await api.getFaceStatus()
+
+      if (!faceStatus.faceRegistered) {
+        // Show face registration dialog
+        setFaceRecognitionMode('register')
+        return
       }
+
+      // User has registered face, proceed with verification
+      setFaceRecognitionMode('verify')
     } catch (e: any) {
-      alert('Error marking attendance: ' + e.message);
+      alert('Error checking face registration status: ' + e.message)
     }
   };
 
@@ -365,7 +362,7 @@ export default function StudentDashboardPage() {
                     {fees?.paymentStatus || 'Unknown'}
                   </Badge>
                 </div>
-                {fees?.dueAmount > 0 && (
+                {fees && fees.dueAmount > 0 && (
                   <p className="text-sm text-muted-foreground mt-2">
                     Due: ₹{fees.dueAmount}
                   </p>
@@ -395,9 +392,13 @@ export default function StudentDashboardPage() {
                   </p>
                 )}
                 {studentProfile?.shift && (
-                  <p className="text-xs text-muted-foreground">
-                    Shift: {studentProfile.shift}
-                  </p>
+                  <div className="mt-2 p-2 bg-muted/50 rounded-md">
+                    <p className="text-xs font-medium text-foreground">Assigned Shift</p>
+                    <p className="text-sm font-semibold">{studentProfile.shift.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {studentProfile.shift.startTime} - {studentProfile.shift.endTime}
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -423,7 +424,7 @@ export default function StudentDashboardPage() {
                   size="lg"
                 >
                   <QrCode className="h-8 w-8" />
-                  <span>Scan QR Code</span>
+                  <span>Scan Daily QR</span>
                 </Button>
                 <Button
                   onClick={handleMarkAttendanceFace}
@@ -449,7 +450,7 @@ export default function StudentDashboardPage() {
                   size="lg"
                 >
                   <Download className="h-8 w-8" />
-                  <span>Generate My ID QR</span>
+                  <span>Download My ID QR</span>
                 </Button>
               </div>
               {attendanceMarked && (
@@ -546,12 +547,12 @@ export default function StudentDashboardPage() {
                   </div>
                 </div>
                 
-                {fees?.dueAmount > 0 && (
+                {fees && fees.dueAmount && fees.dueAmount > 0 && (
                   <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium text-red-900">Payment Due</p>
-                        <p className="text-sm text-red-700">₹{fees.dueAmount} pending</p>
+                        <p className="text-sm text-red-700">₹{fees?.dueAmount || 0} pending</p>
                       </div>
                       <Button onClick={handlePayFees} size="sm" className="bg-red-600 hover:bg-red-700">
                         <CreditCard className="h-4 w-4 mr-2" />
@@ -620,12 +621,16 @@ export default function StudentDashboardPage() {
         <Dialog open={isScannerOpen} onOpenChange={setIsScannerOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Scan QR Code for Attendance</DialogTitle>
+              <DialogTitle>Scan Daily QR Code for Attendance</DialogTitle>
+              <p className="text-sm text-muted-foreground">
+                Scan the QR code displayed on the admin dashboard to mark your attendance
+              </p>
             </DialogHeader>
             <AttendanceScanner
               onScanSuccess={async (data) => {
                 try {
-                  await api.markAttendance({ location: { lat: 0, lng: 0, address: 'Scanned' } });
+                  // Validate and mark attendance with QR token
+                  await api.markQRAttendance({ qrToken: data, location: { lat: 0, lng: 0, address: 'QR Scan' } });
                   setAttendanceMarked(true);
                   setIsScannerOpen(false);
                   setTimeout(() => setAttendanceMarked(false), 3000);
@@ -640,6 +645,51 @@ export default function StudentDashboardPage() {
                 console.error('Scan error:', error);
               }}
             />
+          </DialogContent>
+        </Dialog>
+
+        {/* Face Recognition Dialog */}
+        <Dialog open={faceRecognitionMode !== null} onOpenChange={(open) => !open && setFaceRecognitionMode(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {faceRecognitionMode === 'register' ? 'Register Your Face' : 'Verify Your Face'}
+              </DialogTitle>
+              <p className="text-sm text-muted-foreground">
+                {faceRecognitionMode === 'register'
+                  ? 'Register your face for future attendance verification'
+                  : 'Verify your face to mark attendance'
+                }
+              </p>
+            </DialogHeader>
+            {faceRecognitionMode && (
+              <FaceRecognition
+                mode={faceRecognitionMode}
+                onSuccess={async (result) => {
+                  if (faceRecognitionMode === 'register') {
+                    // Face registered successfully, now verify for attendance
+                    setFaceRecognitionMode('verify')
+                  } else {
+                    // Face verified, mark attendance
+                    try {
+                      await api.markAttendance({ faceMatch: true, location: { lat: 0, lng: 0, address: 'Face recognition' } });
+                      setAttendanceMarked(true);
+                      setFaceRecognitionMode(null);
+                      setTimeout(() => setAttendanceMarked(false), 3000);
+                      // Refresh attendance data
+                      const attData = await api.getMyAttendance();
+                      setAttendance(attData);
+                    } catch (e: any) {
+                      alert('Error marking attendance: ' + e.message);
+                    }
+                  }
+                }}
+                onError={(error) => {
+                  console.error('Face recognition error:', error);
+                  alert('Face recognition failed: ' + error);
+                }}
+              />
+            )}
           </DialogContent>
         </Dialog>
       </SidebarInset>

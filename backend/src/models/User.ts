@@ -11,6 +11,10 @@ const UserSchema = new Schema(
       default: "Student",
     },
     studentId: { type: Schema.Types.ObjectId, ref: "Student" },
+    // Face recognition data
+    faceDescriptor: { type: [Number], default: null }, // Array of 128 face descriptor values
+    faceRegistered: { type: Boolean, default: false },
+    faceRegistrationDate: { type: Date, default: null },
   },
   { timestamps: true },
 )

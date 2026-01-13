@@ -18,9 +18,11 @@ type AttendanceRecord = {
 
 interface AttendanceScannerProps {
   onCompleted?: (record: AttendanceRecord | null) => void
+  onScanSuccess?: (data: string) => void
+  onScanError?: (error: any) => void
 }
 
-export function AttendanceScanner({ onCompleted }: AttendanceScannerProps) {
+export function AttendanceScanner({ onCompleted, onScanSuccess, onScanError }: AttendanceScannerProps) {
   const [phase, setPhase] = useState<Phase>("scanning")
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -70,22 +72,23 @@ export function AttendanceScanner({ onCompleted }: AttendanceScannerProps) {
         const scanner = new Html5QrcodeScanner(scannerRef.current.id, {
           fps: 10,
           qrbox: 250,
-        })
+        }, false)
 
         html5QrCodeRef.current = scanner
         scanner.render(
-          async () => {
+          async (decodedText: string) => {
             // Stop scanning once we have a QR
             try {
               await scanner.clear()
             } catch {
               // ignore
             }
-            await handleQrScanned()
+            await handleQrScanned(decodedText)
           },
           (errorMessage: string) => {
             // We can safely ignore scan failures, scanner keeps running
             console.debug("QR scan error", errorMessage)
+            if (onScanError) onScanError(errorMessage)
           },
         )
       } catch (e) {
@@ -108,12 +111,32 @@ export function AttendanceScanner({ onCompleted }: AttendanceScannerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase])
 
-  const handleQrScanned = async () => {
+  const handleQrScanned = async (decodedText?: string) => {
+    // If onScanSuccess is provided, use the new QR attendance system
+    if (onScanSuccess && decodedText) {
+      try {
+        onScanSuccess(decodedText)
+        return
+      } catch (e: any) {
+        console.error("QR scan success callback failed", e)
+        if (onScanError) onScanError(e)
+        return
+      }
+    }
+
+    // Legacy behavior for backward compatibility
     try {
       setError(null)
       setMessage("Validating QR with the server…")
 
-      const data = await api.markAttendance({ location })
+      // Ensure location has valid coordinates
+      const locationData = location.lat && location.lng ? {
+        lat: location.lat,
+        lng: location.lng,
+        address: location.address
+      } : undefined
+
+      const data = await api.markAttendance(locationData ? { location: locationData } : {})
 
       if (data.requiresFaceVerification) {
         setMessage("QR verified. Face verification required for staff attendance.")
@@ -177,7 +200,14 @@ export function AttendanceScanner({ onCompleted }: AttendanceScannerProps) {
       setMessage("Confirming face verification with the server…")
       setError(null)
 
-      const data = await api.markAttendance({ faceMatch: true, location })
+      // Ensure location has valid coordinates
+      const locationData = location.lat && location.lng ? {
+        lat: location.lat,
+        lng: location.lng,
+        address: location.address
+      } : undefined
+
+      const data = await api.markAttendance(locationData ? { faceMatch: true, location: locationData } : { faceMatch: true })
 
       setRecord(data)
       setMessage("Attendance recorded successfully after face verification.")

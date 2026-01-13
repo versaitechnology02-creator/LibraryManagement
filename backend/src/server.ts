@@ -13,10 +13,16 @@ import profileRoutes from "./routes/profile"
 import feesRoutes from "./routes/fees"
 import salaryRoutes from "./routes/salary"
 import studentsRoutes from "./routes/students"
+import staffRoutes from "./routes/staff"
 import paymentsRoutes from "./routes/payments"
 import desksRoutes from "./routes/desks"
 import shiftsRoutes from "./routes/shifts"
 import qrSessionsRoutes from "./routes/qr-sessions"
+import systemRoutes from "./routes/system"
+
+// Import services
+import { schedulerService } from "./utils/scheduler-service"
+import { emailService } from "./utils/email-service"
 
 const app = express()
 const PORT = process.env.PORT || 5000
@@ -44,10 +50,12 @@ app.use("/api/profile", profileRoutes)
 app.use("/api/fees", feesRoutes)
 app.use("/api/salary", salaryRoutes)
 app.use("/api/students", studentsRoutes)
+app.use("/api/staff", staffRoutes)
 app.use("/api/payments", paymentsRoutes)
 app.use("/api/desks", desksRoutes)
 app.use("/api/shifts", shiftsRoutes)
 app.use("/api/qr-sessions", qrSessionsRoutes)
+app.use("/api/system", systemRoutes)
 
 // 404 handler
 app.use((req, res) => {
@@ -61,8 +69,22 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 })
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`[backend] Server running on port ${PORT}`)
   console.log(`[backend] CORS enabled for: ${CORS_ORIGIN}`)
+
+  // Initialize services
+  console.log(`[backend] Initializing services...`)
+
+  // Test email service connection
+  const emailTest = await emailService.testConnection()
+  if (emailTest) {
+    console.log(`[backend] Email service connected successfully`)
+  } else {
+    console.warn(`[backend] Email service connection failed - check SMTP configuration`)
+  }
+
+  // Initialize scheduler service (cron jobs)
+  console.log(`[backend] Scheduler service initialized with cron jobs`)
 })
 

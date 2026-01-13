@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
+import { api } from "@/lib/api"
 
 export default function AttendancePage() {
   const [students, setStudents] = useState([])
@@ -33,12 +34,10 @@ export default function AttendancePage() {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const [studentsRes, attendanceRes] = await Promise.all([
-        fetch("/api/students"),
-        fetch(`/api/attendance?date=${date}`),
+      const [studentsData, attendanceData] = await Promise.all([
+        api.getAdminStudents(),
+        api.getAttendance(date),
       ])
-      const studentsData = await studentsRes.json()
-      const attendanceData = await attendanceRes.json()
 
       const attMap: Record<string, string> = {}
       attendanceData.forEach((a: any) => {
@@ -48,7 +47,8 @@ export default function AttendancePage() {
       setStudents(studentsData)
       setAttendance(attMap)
     } catch (error) {
-      toast.error("Failed to load attendance")
+      console.error("Error fetching data:", error)
+      toast.error("Failed to load attendance data")
     } finally {
       setLoading(false)
     }
@@ -56,16 +56,12 @@ export default function AttendancePage() {
 
   const markAttendance = async (studentId: string, status: string) => {
     try {
-      const res = await fetch("/api/attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ student: studentId, status, date }),
-      })
-      if (!res.ok) throw new Error()
+      await api.markAdminAttendance({ student: studentId, status, date })
       setAttendance((prev) => ({ ...prev, [studentId]: status }))
       toast.success("Attendance updated")
     } catch (error) {
       toast.error("Failed to update attendance")
+      console.error("Error updating attendance:", error)
     }
   }
 

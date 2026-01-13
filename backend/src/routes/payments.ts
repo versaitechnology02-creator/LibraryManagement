@@ -2,6 +2,7 @@ import express, { Response } from "express"
 import connectDB from "../config/db"
 import Payment from "../models/Payment"
 import Student from "../models/Student"
+import User from "../models/User"
 import { authMiddleware, roleMiddleware, AuthRequest } from "../config/auth"
 
 const router = express.Router()

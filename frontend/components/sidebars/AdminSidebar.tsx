@@ -10,6 +10,8 @@ import {
   Clock,
   CheckSquare,
   User,
+  QrCode,
+  Cog,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { api } from "@/lib/api"
@@ -74,6 +76,22 @@ export function AdminSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
+            <SidebarMenuButton tooltip="Staff" asChild>
+              <a href="/dashboard/staff">
+                <User className="size-4" />
+                <span>Staff</span>
+              </a>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip="QR Attendance" asChild>
+              <a href="/dashboard/qr">
+                <QrCode className="size-4" />
+                <span>QR Attendance</span>
+              </a>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
             <SidebarMenuButton tooltip="Attendance" asChild>
               <a href="/dashboard/attendance">
                 <CheckSquare className="size-4" />
@@ -102,6 +120,14 @@ export function AdminSidebar() {
               <a href="/dashboard/payments">
                 <CreditCard className="size-4" />
                 <span>Payments</span>
+              </a>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip="System Management" asChild>
+              <a href="/dashboard/system">
+                <Cog className="size-4" />
+                <span>System</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
